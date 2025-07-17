@@ -1,0 +1,58 @@
+# TODO:
+# fastapi가 뜰 때 db가 생성되는 게 역할의 관점에서 맞지 않음
+# db 서버가 뜰떄 db가 init되도록 수정
+# initdb를 먼저 설정하고 볼륨 마운트 설정
+
+version: "3.9"
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: mysql-container
+    restart: always
+    environment:
+      MYSQL_DATABASE: fastapi_db
+      MYSQL_USER: fren
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_PASSWORD: mysql1234
+    ports:
+      - "3306:3306"
+    volumes:
+      # - mysql-data:/var/lib/mysql  # 생성할떄마다 초기화 하고 싶다면 이부분은 제거
+      - ./initdb:/docker-entrypoint-initdb.d
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      
+# TODO: 
+# db warm up 시간이 필요함 -> 이거를 감지할 수 있도록 수정 -> depends_on + health check
+  web:
+    build: 
+      context: .
+    container_name: fastapi-demo-container
+    command: poetry run uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app
+    networks:
+      - default
+    env_file:
+      - .env
+
+volumes:
+  mysql-data:  
+
+# TODO: network 연결 
+# Docker Compose에서 정의된 서비스끼리는 같은 네트워크 내에서 자동 연결
+# TODO: formatting 확인
+networks:
+  default: 
+    name: fastapi-network
